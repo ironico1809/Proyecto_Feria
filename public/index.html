@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimización de Tráfico - Santa Cruz de la Sierra</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            height: calc(100vh - 200px);
+        }
+
+        .control-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .visualization-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h3::before {
+            content: "🔍";
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .results {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 5px solid #667eea;
+        }
+
+        .results h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .route-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .route-path {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .route-node {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .route-arrow {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .time-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        .svg-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            transform: scale(1.1);
+        }
+
+        .node-circle {
+            fill: #667eea;
+            stroke: white;
+            stroke-width: 3;
+        }
+
+        .node-circle.selected {
+            fill: #e53e3e;
+            stroke: #ffffff;
+            stroke-width: 4;
+        }
+
+        .node-circle.primer-anillo {
+            fill: #38a169;
+        }
+
+        .node-circle.segundo-anillo {
+            fill: #3182ce;
+        }
+
+        .node-text {
+            fill: white;
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        .edge {
+            stroke: #a0aec0;
+            stroke-width: 2;
+            fill: none;
+            transition: all 0.3s ease;
+        }
+
+        .edge.highlighted {
+            stroke: #e53e3e;
+            stroke-width: 4;
+            animation: pulse 2s infinite;
+        }
+
+        .edge-label {
+            fill: #4a5568;
+            font-size: 12px;
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .visualization-panel {
+                height: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚦 Sistema de Optimización de Tráfico</h1>
+            <p>Santa Cruz de la Sierra - Algoritmo de Dijkstra para Rutas Óptimas</p>
+        </div>
+
+        <div class="main-content">
+            <div class="control-panel">
+                <div class="section">
+                    <h3>Selección de Ruta</h3>
+                    <div class="input-group">
+                        <label for="origen">Punto de Origen:</label>
+                        <select id="origen">
+                            <option value="">-- Seleccione origen --</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="destino">Punto de Destino:</label>
+                        <select id="destino">
+                            <option value="">-- Seleccione destino --</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="calcularRuta()">
+                        🚀 Calcular Ruta Óptima
+                    </button>
+                </div>
+
+                <div id="resultados" class="results" style="display: none;">
+                    <h4>📊 Resultados del Análisis</h4>
+                    <div id="ruta-info" class="route-info">
+                        <div id="ruta-path" class="route-path"></div>
+                        <div id="tiempo-info" class="time-info"></div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div id="tiempo-total" class="stat-value">0</div>
+                            <div class="stat-label">Minutos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div id="nodos-ruta" class="stat-value">0</div>
+                            <div class="stat-label">Intersecciones</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>🎯 Información del Proyecto</h3>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 10px; font-size: 0.9rem; line-height: 1.6;">
+                        <p><strong>Objetivo:</strong> Optimizar el flujo vehicular en Santa Cruz mediante algoritmos de investigación operativa.</p>
+                        <br>
+                        <p><strong>Metodología:</strong> Aplicación del algoritmo de Dijkstra para encontrar rutas mínimas en la red vial urbana.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="visualization-panel">
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #38a169;"></div>
+                        <span>Primer Anillo</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #3182ce;"></div>
+                        <span>Segundo Anillo</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e53e3e;"></div>
+                        <span>Ruta Óptima</span>
+                    </div>
+                </div>
+                <div id="network-visualization" class="svg-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Datos de la red vial
+        const redVial = {
+            nodos: [
+                // Primer anillo
+                { id: "Plaza 24 de Septiembre", tipo: "primer-anillo", x: 400, y: 300 },
+                { id: "Av. Cañoto", tipo: "primer-anillo", x: 500, y: 250 },
+                { id: "Av. Irala", tipo: "primer-anillo", x: 500, y: 350 },
+                { id: "Av. Omar Chávez", tipo: "primer-anillo", x: 400, y: 400 },
+                { id: "Av. Uruguay", tipo: "primer-anillo", x: 300, y: 350 },
+                
+                // Segundo anillo
+                { id: "Av. Grigotá", tipo: "segundo-anillo", x: 300, y: 200 },
+                { id: "Av. Alemania", tipo: "segundo-anillo", x: 600, y: 200 },
+                { id: "Av. Roca y Coronado", tipo: "segundo-anillo", x: 650, y: 350 },
+                { id: "Av. Cristo Redentor", tipo: "segundo-anillo", x: 500, y: 500 },
+                { id: "Av. Beni", tipo: "segundo-anillo", x: 300, y: 500 },
+                { id: "Av. San Martín", tipo: "segundo-anillo", x: 150, y: 350 }
+            ],
+            
+            aristas: [
+                // Primer anillo (circular)
+                { origen: "Plaza 24 de Septiembre", destino: "Av. Cañoto", peso: 3 },
+                { origen: "Av. Cañoto", destino: "Av. Irala", peso: 2 },
+                { origen: "Av. Irala", destino: "Av. Omar Chávez", peso: 4 },
+                { origen: "Av. Omar Chávez", destino: "Av. Uruguay", peso: 3 },
+                { origen: "Av. Uruguay", destino: "Plaza 24 de Septiembre", peso: 2 },
+                
+                // Segundo anillo (circular)
+                { origen: "Av. Grigotá", destino: "Av. Alemania", peso: 5 },
+                { origen: "Av. Alemania", destino: "Av. Roca y Coronado", peso: 4 },
+                { origen: "Av. Roca y Coronado", destino: "Av. Cristo Redentor", peso: 6 },
+                { origen: "Av. Cristo Redentor", destino: "Av. Beni", peso: 3 },
+                { origen: "Av. Beni", destino: "Av. San Martín", peso: 5 },
+                { origen: "Av. San Martín", destino: "Av. Grigotá", peso: 4 },
+                
+                // Conexiones entre anillos
+                { origen: "Av. Cañoto", destino: "Av. Alemania", peso: 6 },
+                { origen: "Av. Irala", destino: "Av. Roca y Coronado", peso: 5 },
+                { origen: "Av. Omar Chávez", destino: "Av. Cristo Redentor", peso: 5 },
+                { origen: "Av. Uruguay", destino: "Av. Beni", peso: 6 },
+                { origen: "Plaza 24 de Septiembre", destino: "Av. Grigotá", peso: 7 }
+            ]
+        };
+
+        let svg, rutaActual = [];
+
+        // Inicializar la aplicación
+        function inicializar() {
+            llenarSelectores();
+            crearVisualizacion();
+        }
+
+        function llenarSelectores() {
+            const origenSelect = document.getElementById('origen');
+            const destinoSelect = document.getElementById('destino');
+            
+            redVial.nodos.forEach(nodo => {
+                const optionOrigen = new Option(nodo.id, nodo.id);
+                const optionDestino = new Option(nodo.id, nodo.id);
+                origenSelect.add(optionOrigen);
+                destinoSelect.add(optionDestino);
+            });
+        }
+
+        function crearVisualizacion() {
+            const container = document.getElementById('network-visualization');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            svg = d3.select('#network-visualization')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Crear las aristas
+            const aristas = svg.selectAll('.edge')
+                .data(redVial.aristas)
+                .enter()
+                .append('g');
+
+            aristas.append('line')
+                .attr('class', 'edge')
+                .attr('x1', d => obtenerNodo(d.origen).x)
+                .attr('y1', d => obtenerNodo(d.origen).y)
+                .attr('x2', d => obtenerNodo(d.destino).x)
+                .attr('y2', d => obtenerNodo(d.destino).y);
+
+            // Etiquetas de peso en las aristas
+            aristas.append('text')
+                .attr('class', 'edge-label')
+                .attr('x', d => (obtenerNodo(d.origen).x + obtenerNodo(d.destino).x) / 2)
+                .attr('y', d => (obtenerNodo(d.origen).y + obtenerNodo(d.destino).y) / 2)
+                .text(d => d.peso + 'min');
+
+            // Crear los nodos
+            const nodos = svg.selectAll('.node')
+                .data(redVial.nodos)
+                .enter()
+                .append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+            nodos.append('circle')
+                .attr('class', d => `node-circle ${d.tipo}`)
+                .attr('r', 25);
+
+            nodos.append('text')
+                .attr('class', 'node-text')
+                .text(d => d.id.split(' ').slice(-1)[0])
+                .attr('dy', '0.35em');
+
+            // Añadir tooltips
+            nodos.append('title')
+                .text(d => d.id);
+        }
+
+        function obtenerNodo(id) {
+            return redVial.nodos.find(nodo => nodo.id === id);
+        }
+
+        // Algoritmo de Dijkstra
+        function dijkstra(origen, destino) {
+            const distancias = {};
+            const anteriores = {};
+            const noVisitados = new Set();
+
+            // Inicializar
+            redVial.nodos.forEach(nodo => {
+                distancias[nodo.id] = Infinity;
+                anteriores[nodo.id] = null;
+                noVisitados.add(nodo.id);
+            });
+
+            distancias[origen] = 0;
+
+            while (noVisitados.size > 0) {
+                // Encontrar nodo no visitado con menor distancia
+                let nodoActual = null;
+                let menorDistancia = Infinity;
+                
+                noVisitados.forEach(nodo => {
+                    if (distancias[nodo] < menorDistancia) {
+                        menorDistancia = distancias[nodo];
+                        nodoActual = nodo;
+                    }
+                });
+
+                if (nodoActual === null || nodoActual === destino) break;
+
+                noVisitados.delete(nodoActual);
+
+                // Examinar vecinos
+                redVial.aristas.forEach(arista => {
+                    if (arista.origen === nodoActual && noVisitados.has(arista.destino)) {
+                        const distanciaAlternativa = distancias[nodoActual] + arista.peso;
+                        if (distanciaAlternativa < distancias[arista.destino]) {
+                            distancias[arista.destino] = distanciaAlternativa;
+                            anteriores[arista.destino] = nodoActual;
+                        }
+                    }
+                });
+            }
+
+            // Reconstruir ruta
+            const ruta = [];
+            let nodo = destino;
+            while (nodo !== null) {
+                ruta.unshift(nodo);
+                nodo = anteriores[nodo];
+            }
+
+            return {
+                ruta: ruta,
+                distanciaTotal: distancias[destino]
+            };
+        }
+
+        function calcularRuta() {
+            const origen = document.getElementById('origen').value;
+            const destino = document.getElementById('destino').value;
+
+            if (!origen || !destino) {
+                alert('Por favor seleccione origen y destino');
+                return;
+            }
+
+            if (origen === destino) {
+                alert('El origen y destino no pueden ser iguales');
+                return;
+            }
+
+            const resultado = dijkstra(origen, destino);
+            
+            if (resultado.distanciaTotal === Infinity) {
+                alert('No existe ruta entre los puntos seleccionados');
+                return;
+            }
+
+            mostrarResultados(resultado);
+            resaltarRuta(resultado.ruta);
+        }
+
+        function mostrarResultados(resultado) {
+            const resultadosDiv = document.getElementById('resultados');
+            const rutaPath = document.getElementById('ruta-path');
+            const tiempoInfo = document.getElementById('tiempo-info');
+            const tiempoTotal = document.getElementById('tiempo-total');
+            const nodosRuta = document.getElementById('nodos-ruta');
+
+            // Mostrar ruta
+            rutaPath.innerHTML = '';
+            resultado.ruta.forEach((nodo, index) => {
+                const nodoDiv = document.createElement('div');
+                nodoDiv.className = 'route-node';
+                nodoDiv.textContent = nodo.split(' ').slice(-1)[0];
+                rutaPath.appendChild(nodoDiv);
+
+                if (index < resultado.ruta.length - 1) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'route-arrow';
+                    arrow.textContent = '→';
+                    rutaPath.appendChild(arrow);
+                }
+            });
+
+            // Información de tiempo
+            tiempoInfo.innerHTML = `
+                <span>🕒 Tiempo total de viaje: <strong>${resultado.distanciaTotal} minutos</strong></span>
+            `;
+
+            // Estadísticas
+            tiempoTotal.textContent = resultado.distanciaTotal;
+            nodosRuta.textContent = resultado.ruta.length;
+
+            resultadosDiv.style.display = 'block';
+        }
+
+        function resaltarRuta(ruta) {
+            // Limpiar resaltado anterior
+            svg.selectAll('.edge').classed('highlighted', false);
+            svg.selectAll('.node-circle').classed('selected', false);
+
+            // Resaltar nodos de la ruta
+            ruta.forEach(nodoId => {
+                svg.selectAll('.node-circle')
+                    .filter(d => d.id === nodoId)
+                    .classed('selected', true);
+            });
+
+            // Resaltar aristas de la ruta
+            for (let i = 0; i < ruta.length - 1; i++) {
+                const origen = ruta[i];
+                const destino = ruta[i + 1];
+                
+                svg.selectAll('.edge')
+                    .filter(d => d.origen === origen && d.destino === destino)
+                    .classed('highlighted', true);
+            }
+        }
+
+        // Inicializar cuando la página cargue
+        window.addEventListener('load', inicializar);
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                document.getElementById('network-visualization').innerHTML = '';
+                crearVisualizacion();
+                if (rutaActual.length > 0) {
+                    resaltarRuta(rutaActual);
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>
