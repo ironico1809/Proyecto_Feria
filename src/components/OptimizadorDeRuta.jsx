@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import './OptimizadorDeRuta.css';
 import { nodos, conexiones, dijkstra, rutaOptimaPuntosPorPunto } from '../utils/redVial.js';
+import logo from '../Logo/logo.png';
+
+// Copia de los tiempos originales (solo una vez)
+const tiemposOriginales = conexiones.map(conn => ({
+  origen: conn.origen,
+  destino: conn.destino,
+  tiempo: conn.tiempo
+}));
 
 const SimpleTrafficOptimizer = () => {
   const [origen, setOrigen] = useState("");
@@ -12,7 +20,177 @@ const SimpleTrafficOptimizer = () => {
   const [animacionActiva, setAnimacionActiva] = useState(false);
   const [posicionCoche, setPosicionCoche] = useState({ x: 0, y: 0 });
   const [progresRuta, setProgresRuta] = useState({ nodoActual: "", porcentaje: 0 });
+  const [mostrarTiempos, setMostrarTiempos] = useState(false);
   const svgRef = useRef();
+
+  // Estados para autocomplete
+  const [sugerenciasOrigen, setSugerenciasOrigen] = useState([]);
+  const [sugerenciasDestino, setSugerenciasDestino] = useState([]);
+  const [sugerenciasIntermedios, setSugerenciasIntermedios] = useState({});
+  const [indiceActivoOrigen, setIndiceActivoOrigen] = useState(-1);
+  const [indiceActivoDestino, setIndiceActivoDestino] = useState(-1);
+  const [indicesActivosIntermedios, setIndicesActivosIntermedios] = useState({});
+
+  // Funciones para autocomplete
+  const obtenerSugerencias = (texto, nodosExcluir = []) => {
+    if (!texto || texto.length < 1) return [];
+    
+    const textoLower = texto.toLowerCase();
+    return nodos
+      .filter(nodo => 
+        nodo.id.toLowerCase().includes(textoLower) && 
+        !nodosExcluir.includes(nodo.id)
+      )
+      .map(nodo => nodo.id)
+      .slice(0, 8); // Limitar a 8 sugerencias
+  };
+
+  const manejarCambioOrigen = (valor) => {
+    setOrigen(valor);
+    const nodosExcluir = [destino, ...puntosIntermedios.filter(p => p.trim() !== "")];
+    const nuevasSugerencias = obtenerSugerencias(valor, nodosExcluir);
+    setSugerenciasOrigen(nuevasSugerencias);
+    setIndiceActivoOrigen(-1);
+  };
+
+  const manejarCambioDestino = (valor) => {
+    setDestino(valor);
+    const nodosExcluir = [origen, ...puntosIntermedios.filter(p => p.trim() !== "")];
+    const nuevasSugerencias = obtenerSugerencias(valor, nodosExcluir);
+    setSugerenciasDestino(nuevasSugerencias);
+    setIndiceActivoDestino(-1);
+  };
+
+  const manejarCambioIntermedio = (indice, valor) => {
+    const nuevosIntermedios = [...puntosIntermedios];
+    nuevosIntermedios[indice] = valor;
+    setPuntosIntermedios(nuevosIntermedios);
+    
+    const nodosExcluir = [
+      origen, 
+      destino, 
+      ...nuevosIntermedios.filter((p, i) => i !== indice && p.trim() !== "")
+    ].filter(Boolean);
+    
+    const nuevasSugerencias = obtenerSugerencias(valor, nodosExcluir);
+    setSugerenciasIntermedios(prev => ({
+      ...prev,
+      [indice]: nuevasSugerencias
+    }));
+    setIndicesActivosIntermedios(prev => ({
+      ...prev,
+      [indice]: -1
+    }));
+  };
+
+  const seleccionarSugerenciaOrigen = (sugerencia) => {
+    setOrigen(sugerencia);
+    setSugerenciasOrigen([]);
+    setIndiceActivoOrigen(-1);
+  };
+
+  const seleccionarSugerenciaDestino = (sugerencia) => {
+    setDestino(sugerencia);
+    setSugerenciasDestino([]);
+    setIndiceActivoDestino(-1);
+  };
+
+  const seleccionarSugerenciaIntermedio = (indice, sugerencia) => {
+    const nuevosIntermedios = [...puntosIntermedios];
+    nuevosIntermedios[indice] = sugerencia;
+    setPuntosIntermedios(nuevosIntermedios);
+    setSugerenciasIntermedios(prev => ({
+      ...prev,
+      [indice]: []
+    }));
+    setIndicesActivosIntermedios(prev => ({
+      ...prev,
+      [indice]: -1
+    }));
+  };
+
+  const manejarTeclaOrigen = (e) => {
+    if (sugerenciasOrigen.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceActivoOrigen(prev => 
+        prev < sugerenciasOrigen.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceActivoOrigen(prev => 
+        prev > 0 ? prev - 1 : sugerenciasOrigen.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceActivoOrigen >= 0) {
+        seleccionarSugerenciaOrigen(sugerenciasOrigen[indiceActivoOrigen]);
+      }
+    } else if (e.key === 'Escape') {
+      setSugerenciasOrigen([]);
+      setIndiceActivoOrigen(-1);
+    }
+  };
+
+  const manejarTeclaDestino = (e) => {
+    if (sugerenciasDestino.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceActivoDestino(prev => 
+        prev < sugerenciasDestino.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceActivoDestino(prev => 
+        prev > 0 ? prev - 1 : sugerenciasDestino.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceActivoDestino >= 0) {
+        seleccionarSugerenciaDestino(sugerenciasDestino[indiceActivoDestino]);
+      }
+    } else if (e.key === 'Escape') {
+      setSugerenciasDestino([]);
+      setIndiceActivoDestino(-1);
+    }
+  };
+
+  const manejarTeclaIntermedio = (e, indice) => {
+    const sugerencias = sugerenciasIntermedios[indice] || [];
+    if (sugerencias.length === 0) return;
+    
+    const indiceActivo = indicesActivosIntermedios[indice] || -1;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndicesActivosIntermedios(prev => ({
+        ...prev,
+        [indice]: indiceActivo < sugerencias.length - 1 ? indiceActivo + 1 : 0
+      }));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndicesActivosIntermedios(prev => ({
+        ...prev,
+        [indice]: indiceActivo > 0 ? indiceActivo - 1 : sugerencias.length - 1
+      }));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceActivo >= 0) {
+        seleccionarSugerenciaIntermedio(indice, sugerencias[indiceActivo]);
+      }
+    } else if (e.key === 'Escape') {
+      setSugerenciasIntermedios(prev => ({
+        ...prev,
+        [indice]: []
+      }));
+      setIndicesActivosIntermedios(prev => ({
+        ...prev,
+        [indice]: -1
+      }));
+    }
+  };
 
   // Los nodos y conexiones ahora se importan desde redVial.js
 
@@ -20,24 +198,80 @@ const SimpleTrafficOptimizer = () => {
     if (!svgRef.current) return;
 
     const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove(); // Limpiar SVG anterior
+    // Solo limpiar SVG completo si cambian origen, destino o puntosIntermedios
+    // No limpiar si solo cambia mostrarTiempos
+    if (mostrarTiempos === false) {
+      svg.selectAll("*").remove();
+    } else {
+      svg.selectAll(".tiempo-fijo-linea").remove();
+    }
 
-    const width = 600;
-    const height = 400;
+    const width = 900;
+    const height = 600;
 
     // Crear líneas de conexión
     conexiones.forEach(conn => {
       const nodoOrigen = nodos.find(n => n.id === conn.origen);
       const nodoDestino = nodos.find(n => n.id === conn.destino);
-      
       if (nodoOrigen && nodoDestino) {
-        svg.append("line")
+        const linea = svg.append("line")
           .attr("x1", nodoOrigen.x)
           .attr("y1", nodoOrigen.y)
           .attr("x2", nodoDestino.x)
           .attr("y2", nodoDestino.y)
           .attr("stroke", "#ccc")
-          .attr("stroke-width", 2);
+          .attr("stroke-width", 4)
+          .attr("class", "conexion-line")
+          .style("cursor", "pointer")
+          .on("mouseover", function() {
+            d3.select(this).attr("stroke", "#ff6b35");
+          })
+          .on("mouseout", function() {
+            d3.select(this).attr("stroke", "#ccc");
+          })
+          .on("click", function(event) {
+            svg.selectAll(".linea-tooltip").remove();
+            const midX = (nodoOrigen.x + nodoDestino.x) / 2;
+            const midY = (nodoOrigen.y + nodoDestino.y) / 2;
+            const tooltip = svg.append("g")
+              .attr("class", "linea-tooltip")
+              .attr("transform", `translate(${midX + 10}, ${midY - 30})`);
+            tooltip.append("rect")
+              .attr("width", 60)
+              .attr("height", 28)
+              .attr("fill", "#222")
+              .attr("stroke", "#ff6b35")
+              .attr("stroke-width", 1)
+              .attr("rx", 6);
+            tooltip.append("text")
+              .attr("x", 30)
+              .attr("y", 18)
+              .attr("text-anchor", "middle")
+              .attr("fill", "#fff")
+              .attr("font-size", "13px")
+              .attr("font-weight", "bold")
+              .text(conn.tiempo + " min");
+            svg.on("click", function(e) {
+              if (e.target.tagName !== "line") {
+                svg.selectAll(".linea-tooltip").remove();
+                svg.on("click", null);
+              }
+            });
+            event.stopPropagation();
+          });
+        if (mostrarTiempos) {
+          const midX = (nodoOrigen.x + nodoDestino.x) / 2;
+          const midY = (nodoOrigen.y + nodoDestino.y) / 2;
+          svg.append("text")
+            .attr("x", midX + 12)
+            .attr("y", midY - 8)
+            .attr("text-anchor", "start")
+            .attr("fill", "#ff6b35")
+            .attr("font-size", "13px")
+            .attr("font-weight", "bold")
+            .attr("class", "tiempo-fijo-linea")
+            .text(conn.tiempo + " min");
+        }
       }
     });
 
@@ -256,7 +490,7 @@ const SimpleTrafficOptimizer = () => {
     // Leyenda
     const leyenda = svg.append("g")
       .attr("class", "leyenda")
-      .attr("transform", "translate(465, 20)");
+      .attr("transform", `translate(${width - 150}, 30)`); // Mover a la esquina superior derecha
     
     leyenda.append("rect")
       .attr("width", 120)
@@ -294,7 +528,7 @@ const SimpleTrafficOptimizer = () => {
         .text(item.text);
     });
 
-  }, [origen, destino, puntosIntermedios]);
+  }, [origen, destino, puntosIntermedios, mostrarTiempos]);
 
   // Función para animar el coche a lo largo de la ruta
   const animarCoche = (rutaCompleta) => {
@@ -499,12 +733,13 @@ const SimpleTrafficOptimizer = () => {
   return (
     <div className="optimizador-container">
       <div className="optimizador-header">
-        <h1 className="optimizador-title">
-           Sistema de Optimización de Tráfico
-        </h1>
-        <p className="optimizador-subtitle">
-          Santa Cruz de la Sierra
-        </p>
+        <div className="optimizador-header-flex">
+          <img src={logo} alt="Logo" className="optimizador-logo" />
+          <div>
+            <h1 className="optimizador-title">RAPIDINGO</h1>
+            <p className="optimizador-subtitle">MEJOR TRÁFICO, MEJOR DÍA</p>
+          </div>
+        </div>
       </div>
       
       <div className="optimizador-control-panel">
@@ -517,66 +752,75 @@ const SimpleTrafficOptimizer = () => {
             <label className="optimizador-label">
               📍 Punto de Origen:
             </label>
-            <input 
-              type="text"
-              value={origen}
-              onChange={(e) => setOrigen(e.target.value)}
-              placeholder="Escriba el origen..."
-              className="optimizador-input"
-            />
+            <div className="optimizador-autocomplete-wrapper">
+              <input 
+                type="text"
+                value={origen}
+                onChange={(e) => manejarCambioOrigen(e.target.value)}
+                onKeyDown={manejarTeclaOrigen}
+                onFocus={() => {
+                  const nodosExcluir = [destino, ...puntosIntermedios.filter(p => p.trim() !== "")];
+                  setSugerenciasOrigen(obtenerSugerencias(origen, nodosExcluir));
+                }}
+                onBlur={() => setTimeout(() => setSugerenciasOrigen([]), 200)}
+                placeholder="Escriba el origen..."
+                className="optimizador-input"
+                autoComplete="off"
+              />
+              {sugerenciasOrigen.length > 0 && (
+                <ul className="optimizador-sugerencias-list">
+                  {sugerenciasOrigen.map((sugerencia, index) => (
+                    <li 
+                      key={sugerencia}
+                      className={indiceActivoOrigen === index ? 'active' : ''}
+                      onMouseDown={() => seleccionarSugerenciaOrigen(sugerencia)}
+                      onMouseEnter={() => setIndiceActivoOrigen(index)}
+                    >
+                      {sugerencia}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
           
           <div className="optimizador-form-group">
             <label className="optimizador-label">
               🎯 Punto de Destino:
             </label>
-            <input 
-              type="text"
-              value={destino}
-              onChange={(e) => setDestino(e.target.value)}
-              placeholder="Escriba el destino..."
-              className="optimizador-input"
-            />
-          </div>
-        </div>
-        
-        {/* Criterio de Optimización */}
-        <div className="optimizador-optimization-section">
-          <h4 className="optimizador-optimization-title">
-            ⚡ Criterio de Optimización (Algoritmo de Dijkstra)
-          </h4>
-          <div className="optimizador-optimization-options">
-            <div className="optimizador-radio-group">
-              <input
-                type="radio"
-                id="tiempo"
-                name="criterio"
-                value="tiempo"
-                checked={criterioOptimizacion === "tiempo"}
-                onChange={(e) => setCriterioOptimizacion(e.target.value)}
+            <div className="optimizador-autocomplete-wrapper">
+              <input 
+                type="text"
+                value={destino}
+                onChange={(e) => manejarCambioDestino(e.target.value)}
+                onKeyDown={manejarTeclaDestino}
+                onFocus={() => {
+                  const nodosExcluir = [origen, ...puntosIntermedios.filter(p => p.trim() !== "")];
+                  setSugerenciasDestino(obtenerSugerencias(destino, nodosExcluir));
+                }}
+                onBlur={() => setTimeout(() => setSugerenciasDestino([]), 200)}
+                placeholder="Escriba el destino..."
+                className="optimizador-input"
+                autoComplete="off"
               />
-              <label htmlFor="tiempo" className="optimizador-radio-label">
-                ⏱️ <strong>Tiempo Mínimo</strong>
-                <span className="optimizador-radio-desc">Ruta más rápida (minutos)</span>
-              </label>
-            </div>
-            <div className="optimizador-radio-group">
-              <input
-                type="radio"
-                id="distancia"
-                name="criterio"
-                value="distancia"
-                checked={criterioOptimizacion === "distancia"}
-                onChange={(e) => setCriterioOptimizacion(e.target.value)}
-              />
-              <label htmlFor="distancia" className="optimizador-radio-label">
-                📏 <strong>Distancia Mínima</strong>
-                <span className="optimizador-radio-desc">Ruta más corta (kilómetros)</span>
-              </label>
+              {sugerenciasDestino.length > 0 && (
+                <ul className="optimizador-sugerencias-list">
+                  {sugerenciasDestino.map((sugerencia, index) => (
+                    <li 
+                      key={sugerencia}
+                      className={indiceActivoDestino === index ? 'active' : ''}
+                      onMouseDown={() => seleccionarSugerenciaDestino(sugerencia)}
+                      onMouseEnter={() => setIndiceActivoDestino(index)}
+                    >
+                      {sugerencia}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
-        
+       
         {/* Puntos Intermedios */}
         <div className="optimizador-intermediate-section">
           <div className="optimizador-intermediate-header">
@@ -600,17 +844,53 @@ const SimpleTrafficOptimizer = () => {
                   <div className="optimizador-intermediate-number">
                     {index + 1}
                   </div>
-                  <input 
-                    type="text"
-                    value={punto}
-                    onChange={(e) => {
-                      const nuevoPuntos = [...puntosIntermedios];
-                      nuevoPuntos[index] = e.target.value;
-                      setPuntosIntermedios(nuevoPuntos);
-                    }}
-                    placeholder={`Parada ${index + 1}...`}
-                    className="optimizador-input optimizador-input-intermediate"
-                  />
+                  <div className="optimizador-intermediate-input-container">
+                    <div className="optimizador-autocomplete-wrapper">
+                      <input 
+                        type="text"
+                        value={punto}
+                        onChange={(e) => manejarCambioIntermedio(index, e.target.value)}
+                        onKeyDown={(e) => manejarTeclaIntermedio(e, index)}
+                        onFocus={() => {
+                          const nodosExcluir = [
+                            origen, 
+                            destino, 
+                            ...puntosIntermedios.filter((p, i) => i !== index && p.trim() !== "")
+                          ].filter(Boolean);
+                          setSugerenciasIntermedios(prev => ({
+                            ...prev,
+                            [index]: obtenerSugerencias(punto, nodosExcluir)
+                          }));
+                        }}
+                        onBlur={() => setTimeout(() => {
+                          setSugerenciasIntermedios(prev => ({
+                            ...prev,
+                            [index]: []
+                          }));
+                        }, 200)}
+                        placeholder={`Parada ${index + 1}...`}
+                        className="optimizador-input optimizador-input-intermediate"
+                        autoComplete="off"
+                      />
+                      {sugerenciasIntermedios[index] && sugerenciasIntermedios[index].length > 0 && (
+                        <ul className="optimizador-sugerencias-list">
+                          {sugerenciasIntermedios[index].map((sugerencia, i) => (
+                            <li 
+                              key={sugerencia}
+                              className={indicesActivosIntermedios[index] === i ? 'active' : ''}
+                              onMouseDown={() => seleccionarSugerenciaIntermedio(index, sugerencia)}
+                              onMouseEnter={() => setIndicesActivosIntermedios(prev => ({
+                                ...prev,
+                                [index]: i
+                              }))}
+                            >
+                              {sugerencia}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
                   <button 
                     className="optimizador-btn-remove-stop"
                     onClick={() => {
@@ -646,6 +926,11 @@ const SimpleTrafficOptimizer = () => {
           <button 
             className="optimizador-btn optimizador-btn-success"
             onClick={() => {
+              // Randomizar tiempos ±30%
+              conexiones.forEach(conn => {
+                const factor = 0.7 + Math.random() * 0.6; // entre 0.7 y 1.3
+                conn.tiempo = Math.max(1, Math.round(conn.tiempo * factor));
+              });
               setResultados({
                 mensaje: "🎲 Simulando condiciones de tráfico variables...\n\n✅ Tiempos de viaje actualizados con factores aleatorios!",
                 encontrada: false,
@@ -654,6 +939,26 @@ const SimpleTrafficOptimizer = () => {
             }}
           >
             🎲 Randomizar Tiempos
+          </button>
+          
+          <button
+            className="optimizador-btn optimizador-btn-secondary"
+            onClick={() => {
+              // Restaurar tiempos originales
+              conexiones.forEach(conn => {
+                const original = tiemposOriginales.find(
+                  o => o.origen === conn.origen && o.destino === conn.destino
+                );
+                if (original) conn.tiempo = original.tiempo;
+              });
+              setResultados({
+                mensaje: "⏪ Tiempos de viaje restaurados a los valores originales.",
+                encontrada: false,
+                esSimulacion: true
+              });
+            }}
+          >
+            ⏪ Restaurar Tiempos Originales
           </button>
           
           <button 
@@ -727,12 +1032,12 @@ const SimpleTrafficOptimizer = () => {
               🎯 Destino: {destino || "Sin seleccionar"}
             </div>
             {!origen && (
-              <div className="optimizador-selection-hint optimizador-selection-hint-primary">
+              <div className="optimizador-selection-hint optimizador-selection-hint_primary">
                 👆 Haz clic en un punto del mapa para seleccionar el origen
               </div>
             )}
             {origen && !destino && (
-              <div className="optimizador-selection-hint optimizador-selection-hint-primary">
+              <div className="optimizador-selection-hint optimizador-selection-hint_primary">
                 👆 Ahora selecciona el destino haciendo clic en otro punto
               </div>
             )}
@@ -743,7 +1048,7 @@ const SimpleTrafficOptimizer = () => {
               </div>
             )}
             {puntosIntermedios.length === 5 && (
-              <div className="optimizador-selection-hint optimizador-selection-hint-warning">
+              <div className="optimizador-selection-hint optimizador-selection-hint_warning">
                 ⚠️ Has alcanzado el máximo de 5 paradas intermedias
               </div>
             )}
@@ -770,14 +1075,22 @@ const SimpleTrafficOptimizer = () => {
               </div>
             )}
           </div>
-
           <div className="optimizador-svg-container">
             <svg
               ref={svgRef}
-              width="600"
-              height="400"
+              width="900"
+              height="600"
               className="optimizador-svg"
             ></svg>
+          </div>
+          {/* Botón Mostrar/Ocultar Tiempos debajo del mapa, centrado */}
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '18px 0 0 0' }}>
+            <button
+              className="optimizador-btn optimizador-btn-info"
+              onClick={() => setMostrarTiempos(v => !v)}
+            >
+              {mostrarTiempos ? 'Ocultar Tiempos' : 'Mostrar Tiempos'}
+            </button>
           </div>
         </div>
       </div>
@@ -860,16 +1173,6 @@ const SimpleTrafficOptimizer = () => {
           )}
         </div>
       )}
-      
-      <div className="optimizador-status">
-        <div className="optimizador-status-title">✅ Estado:</div> Sistema de rutas multi-parada activado! 
-        <div className="optimizador-status-details">
-          🎯 Selecciona origen y destino • 
-          �️ Agrega hasta 5 paradas intermedias • 
-          🚀 Calcula rutas optimizadas • 
-          🎲 Simula condiciones de tráfico
-        </div>
-      </div>
     </div>
   );
 };
