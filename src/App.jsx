@@ -1,9 +1,9 @@
-import './components/TrafficOptimizer.css';
-import TrafficOptimizer from './components/TrafficOptimizer';
+import React from 'react';
+import OptimizadorDeRuta  from './components/OptimizadorDeRuta';
 import './App.css';
 
 function App() {
-  return <TrafficOptimizer />;
+  return <OptimizadorDeRuta />;
 }
 
 export default App;
