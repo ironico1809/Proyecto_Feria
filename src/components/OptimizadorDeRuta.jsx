@@ -1080,6 +1080,8 @@ const SimpleTrafficOptimizer = () => {
               ref={svgRef}
               width="900"
               height="600"
+              viewBox="0 0 900 600"
+              preserveAspectRatio="xMidYMid meet"
               className="optimizador-svg"
             ></svg>
           </div>
