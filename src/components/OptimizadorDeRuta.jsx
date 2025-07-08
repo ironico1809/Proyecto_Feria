@@ -1031,27 +1031,6 @@ const SimpleTrafficOptimizer = () => {
             <div className={`optimizador-selection-item optimizador-selection-destino ${!destino ? 'empty' : ''}`}>
               🎯 Destino: {destino || "Sin seleccionar"}
             </div>
-            {!origen && (
-              <div className="optimizador-selection-hint optimizador-selection-hint_primary">
-                👆 Haz clic en un punto del mapa para seleccionar el origen
-              </div>
-            )}
-            {origen && !destino && (
-              <div className="optimizador-selection-hint optimizador-selection-hint_primary">
-                👆 Ahora selecciona el destino haciendo clic en otro punto
-              </div>
-            )}
-            {origen && destino && puntosIntermedios.length < 5 && (
-              <div className="optimizador-selection-hint">
-                💡 Puedes agregar hasta {5 - puntosIntermedios.length} paradas más
-                <br />🖱️ Haz clic en "Agregar Parada" o selecciona puntos en el mapa
-              </div>
-            )}
-            {puntosIntermedios.length === 5 && (
-              <div className="optimizador-selection-hint optimizador-selection-hint_warning">
-                ⚠️ Has alcanzado el máximo de 5 paradas intermedias
-              </div>
-            )}
             
             {animacionActiva && (
               <div className="optimizador-animation-progress">
